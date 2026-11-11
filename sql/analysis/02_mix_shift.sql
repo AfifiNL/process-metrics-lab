@@ -1,7 +1,8 @@
 -- Automation rate before (weeks 5-7) and after (weeks 8-12) the prompt change, overall and per
 -- category. The overall rate can fall while every category rises, because the mix of tickets
 -- moved towards the categories with low rates. The last row holds the mix fixed: each
--- category's change, weighted by its share of the replies sent in weeks 5-12.
+-- category's change (all categories, also the ones the model never drafts for), weighted by
+-- its share of the replies sent in weeks 5-12.
 create or replace table mix_shift as
 with sent as (
     select category, automated, case when week < 8 then 'before' else 'after' end as period
@@ -37,5 +38,4 @@ select 3, 'mix held fixed', null, null,
     sum((sent_before + sent_after) * (rate_after - rate_before)) / sum(sent_before + sent_after),
     sum(sent_before), sum(sent_after)
 from by_category
-where category <> 'privacy'
 order by sort, category;

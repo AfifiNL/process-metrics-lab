@@ -1,7 +1,9 @@
 -- One row per ticket that passed every excluding check, with what has happened to it so far.
 create or replace table fct_tickets as
 with e as (
-    select * from events where ticket_id not in (select ticket_id from excluded_tickets)
+    select * from events ev
+    where ev.ticket_id is not null
+        and not exists (select 1 from excluded_tickets x where x.ticket_id = ev.ticket_id)
 ),
 received as (
     select ticket_id, occurred_at as received_at, source, language from e where event = 'received'

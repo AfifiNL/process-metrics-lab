@@ -39,15 +39,20 @@ categories, their queues and the four priorities are that kit's.
 ## A valid ticket history
 
 1. It starts with exactly one `received`, and nothing is stamped before it.
-2. At most one `triaged`, before the first draft.
+2. At most one `triaged`, and it comes before the first draft. A draft needs a triage.
 3. The n-th decision has at least n drafts before it.
-4. A flagged draft is never `approved` as it is.
-5. `sent` happens at most once, after an approval.
+4. A draft that was flagged is never `approved` as it is. A decision belongs to the latest draft
+   before it.
+5. `sent` happens at most once, after an approval. The last decision before it is an approval,
+   and nothing follows it.
 6. No event is stamped later than it was loaded.
 7. Every event lies inside the twelve weeks of data.
+8. Every row has a ticket id, an event id, a time and a load time, and uses the values listed
+   under Columns. An event id belongs to one event: the same id on rows that differ is an error,
+   not a repeated delivery.
 
 A ticket may be unfinished. One that was received on the last evening has no later events yet,
-and that is valid.
+and that is valid. A ticket reopened after `sent` breaks rule 5 and is excluded.
 
 ## Checks
 
@@ -55,9 +60,9 @@ Each rule is enforced by a file in `sql/checks/`. A check returns the rows that 
 
 | Check | What happens to what it finds |
 |---|---|
-| `repeated_event_id` | Repair: the first delivery is kept, later ones are dropped and counted |
+| `repeated_event_id` | Repair: of rows identical in everything but `loaded_at`, the first is kept and the rest are dropped and counted |
 | `unknown_event_name` | The ticket is excluded |
-| `missing_required_field` | The ticket is excluded |
+| `missing_required_field` | The ticket is excluded (rule 8, and the required fields per event) |
 | `first_event_not_received` | The ticket is excluded (rule 1) |
 | `events_out_of_order` | The ticket is excluded (rules 2 and 5) |
 | `decision_without_draft` | The ticket is excluded (rule 3) |
@@ -66,6 +71,13 @@ Each rule is enforced by a file in `sql/checks/`. A check returns the rows that 
 | `approved_never_sent` | The ticket is excluded: approved more than 24 hours before the end of the data, and no `sent` |
 | `event_outside_window` | The ticket is excluded (rule 7) |
 | `flagged_draft_approved_unedited` | The ticket is excluded (rule 4) |
+| `event_id_reused` | Every ticket that shares the id is excluded (rule 8) |
+| `unknown_value` | The ticket is excluded (rule 8) |
 
 An excluded ticket is left out of every KPI, and the dashboard shows how many were excluded and
-why. Nothing is corrected except repeated deliveries.
+why. Nothing is corrected except repeated deliveries. A row with no ticket id belongs to no
+ticket: it is counted by `missing_required_field` and used nowhere.
+
+The loader is stricter than the checks about form. It refuses a file whose columns are not the
+thirteen above, a time that is not `YYYY-MM-DD HH:MM:SS` in UTC without an offset, and a
+`flagged` value that is not `true` or `false`.

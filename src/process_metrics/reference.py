@@ -166,7 +166,7 @@ def compute(out_dir: Path) -> dict[str, Any]:
             [business_seconds(t.received_at, week_end) / 3600 for t in is_open], 0.9
         )
         weekly[week] = row
-        for category in sorted({t.category for t in ts if t.category}):
+        for category in sorted({t.category for t in tickets if t.category}):
             by_category[(week, category)] = _rates([t for t in ts if t.category == category])
 
     def median_cycle(ts: list[T]) -> float | None:
@@ -213,16 +213,18 @@ def compute(out_dir: Path) -> dict[str, Any]:
     mix: dict[str, dict[str, float | None]] = {
         "overall": {"before": automation(period_a), "after": automation(period_b)}
     }
-    weights: dict[str, int] = {}
-    for category in MODEL_CATEGORIES:
+    weighted, weight_sum = 0.0, 0
+    for category in sorted({t.category for t in period_a + period_b if t.category}):
         a = [t for t in period_a if t.category == category]
         b = [t for t in period_b if t.category == category]
-        mix[category] = {"before": automation(a), "after": automation(b)}
-        weights[category] = sum(1 for t in a + b if t.sent_at is not None)
-    standardised = sum(
-        weights[c] * ((mix[c]["after"] or 0.0) - (mix[c]["before"] or 0.0))
-        for c in MODEL_CATEGORIES
-    ) / sum(weights.values())
+        before, after = automation(a), automation(b)
+        if category in MODEL_CATEGORIES:
+            mix[category] = {"before": before, "after": after}
+        if before is not None and after is not None:
+            weight = sum(1 for t in a + b if t.sent_at is not None)
+            weighted += weight * (after - before)
+            weight_sum += weight
+    standardised = weighted / weight_sum if weight_sum else None
 
     def edit_rate(language: str) -> float | None:
         return _share(

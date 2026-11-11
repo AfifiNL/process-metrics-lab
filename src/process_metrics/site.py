@@ -58,6 +58,13 @@ KPIS: tuple[tuple[str, str, str, Fmt, bool | None], ...] = (
         False,
     ),
     (
+        "ttfd_bus_p50",
+        "Time to first draft, median",
+        "Business hours from received to the first draft",
+        hours,
+        False,
+    ),
+    (
         "ttfd_bus_p90",
         "Time to first draft, 90th percentile",
         "Business hours from received to the first draft, slowest tenth",
@@ -76,6 +83,13 @@ KPIS: tuple[tuple[str, str, str, Fmt, bool | None], ...] = (
         "cycle_cal_p50",
         "Cycle time on the calendar, median",
         "Calendar hours from received to sent, nights and weekends included",
+        hours,
+        False,
+    ),
+    (
+        "cycle_cal_p90",
+        "Cycle time on the calendar, 90th percentile",
+        "Calendar hours from received to sent, slowest tenth",
         hours,
         False,
     ),
@@ -123,6 +137,8 @@ def line_chart(
     """A small line chart of one series by week, as an SVG string."""
     w, h, left, right, top, bottom = 320, 150, 46, 14, 10, 22
     known = [v for v in values if v is not None]
+    if not known:
+        return '<p class="note">No values yet.</p>'
     lo, hi = domain if domain else (min(known), max(known))
     ticks = nice_ticks(lo, hi)
     y0, y1 = ticks[0], ticks[-1]
@@ -263,6 +279,12 @@ def _delta(now: float, before: float, fmt: Fmt, up_is_good: bool | None, week: i
     return f'<span class="delta {tone}">{arrow} {escape(text)}</span> against week {week}'
 
 
+def _tile_delta(now: Any, before: Any, fmt: Fmt, up_is_good: bool | None, week: int) -> str:
+    if now is None or before is None:
+        return "no value to compare"
+    return _delta(float(now), float(before), fmt, up_is_good, week)
+
+
 CSS = """
 :root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;
 --muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,.10);--series:#2a78d6;
@@ -333,7 +355,9 @@ def build_site(build_dir: Path, out_dir: Path) -> Path:
     weekly = rows(con, "select * from kpi_weekly order by week")
     by_cat = rows(con, "select * from kpi_weekly_category order by category, week")
     n_weeks = len(weekly)
-    latest = n_weeks - 2  # index of the last week in which every reply has been sent
+    # the last week in which every reply has been sent, and the week before it
+    complete = [i for i, r in enumerate(weekly) if r["volume"] and r["sent"] == r["volume"]]
+    latest = max(complete) if complete and max(complete) > 0 else n_weeks - 1
     now, prev = weekly[latest], weekly[latest - 1]
     out: list[str] = []
 
@@ -357,7 +381,7 @@ def build_site(build_dir: Path, out_dir: Path) -> Path:
         out.append(
             f'<div class="card tile"><div class="label">{escape(title)}</div>'
             f'<div class="value">{_cell(now[column], fmt)}</div><div class="sub">'
-            f"{_delta(float(now[column]), float(prev[column]), fmt, up_good, prev['week'])}"
+            f"{_tile_delta(now[column], prev[column], fmt, up_good, prev['week'])}"
             "</div></div>"
         )
     out.append("</div>")
@@ -365,7 +389,8 @@ def build_site(build_dir: Path, out_dir: Path) -> Path:
     # ---- weekly charts ----------------------------------------------------------------
     out.append(
         "<h2>Week by week</h2>"
-        f'<p class="note">One chart per KPI. The hollow point is week {n_weeks}, which is not '
+        '<p class="note">One chart per KPI (replies sent is in the table). '
+        f"The hollow point is week {n_weeks}, which is not "
         "complete. Hover a week for its value, or open the table below. Definitions: "
         f"<code>docs/KPIS.md</code>. SQL: <code>{WEEKLY_SQL}</code>.</p>"
         '<div class="grid">'
@@ -398,7 +423,7 @@ def build_site(build_dir: Path, out_dir: Path) -> Path:
         ("cycle_bus_p50", "Cycle time, median (business hours)", hours),
     ):
         values = [float(r[column]) for r in by_cat if r[column] is not None]
-        domain = (min(values), max(values))
+        domain = (min(values), max(values)) if values else None
         out.append(f'<h3>{escape(title)}</h3><div class="grid">')
         for category in categories:
             series = [
@@ -436,7 +461,11 @@ def build_site(build_dir: Path, out_dir: Path) -> Path:
     mix = rows(con, "select * from mix_shift order by sort, category")
     overall = next(r for r in mix if r["category"] == "overall")
     fixed = next(r for r in mix if r["category"] == "mix held fixed")
-    cats = [r for r in mix if r["sort"] == 2]
+    cats = [
+        r
+        for r in mix
+        if r["sort"] == 2 and r["rate_before"] is not None and r["rate_after"] is not None
+    ]
     total_before = sum(r["sent_before"] for r in cats)
     total_after = sum(r["sent_after"] for r in cats)
     rate_rows = [("Overall", float(overall["rate_before"]), float(overall["rate_after"]))] + [
@@ -570,7 +599,8 @@ def build_site(build_dir: Path, out_dir: Path) -> Path:
     )
 
     out.append(
-        f"<footer><p>The data is invented: seed {truth['config']['seed']}, no real tickets, "
+        f"<footer><p>The data is invented: seed {escape(str(truth['config']['seed']))}, "
+        "no real tickets, "
         "customers or company. Finding a planted effect shows the SQL is right. It does not show "
         "the method would survive real data.</p></footer>"
     )

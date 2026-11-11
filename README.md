@@ -2,7 +2,7 @@
 
 A small analytics project for one process: a support desk where a model drafts replies and a
 person approves them. It holds the event specification, the KPI definitions, the SQL that
-computes them, eleven data-quality checks and a dashboard page.
+computes them, thirteen data-quality checks and a dashboard page.
 
 The data is invented. The generator plants known effects and known defects in it, and the build
 fails unless the SQL finds each one, counts each defect exactly, and agrees with a second
@@ -30,17 +30,18 @@ Planted and found
          found:   -2.84 h (billing -2.79 h, others 0.05 h)
   [ok] Automation rate, weeks 5-7 to weeks 8-12
          planted: +7.5 pt inside every category the model drafts for, and a mix that moves to the hard categories
-         found:   overall -5.7 pt; per category +2.7 pt to +11.5 pt; with the mix held fixed +6.8 pt
+         found:   overall -5.7 pt; per category +2.7 pt to +11.5 pt; with the mix held fixed +6.5 pt
   [ok] Check approved_never_sent
          planted: 40 rows
          found:   40 rows
 ```
 
-(Five of the twelve weeks and three of the thirteen findings are shown.)
+(Seven of the twelve weeks and three of the thirteen findings are shown.)
 
 ## Quick start
 
-Needs [uv](https://docs.astral.sh/uv/) and nothing else. No network, no accounts, no model.
+Needs [uv](https://docs.astral.sh/uv/) and nothing else. `make install` downloads the packages;
+after that nothing uses the network. No accounts, no model.
 
 ```bash
 make install   # Python 3.12 environment from the lock file
@@ -75,7 +76,7 @@ One run from the fixed seed: 18,000 tickets over twelve weeks (3 August to 25 Oc
 | Planted | Found by the SQL |
 |---|---|
 | From week 5 the model drafts for billing. The generator records what the same tickets would have taken with a person drafting: median cycle time 2.76 business hours shorter. | Estimate -2.84 h: billing changed by -2.79 h, the other categories by +0.05 h |
-| From week 8 a prompt change adds 7.5 points of unedited approvals in every category the model drafts for, and technical tickets go from 20% to 46% of the volume. | Overall automation rate 60.9% to 55.2%. Every one of the seven categories rose, by 2.7 to 11.5 points. With the mix held fixed: +6.8 points |
+| From week 8 a prompt change adds 7.5 points of unedited approvals in every category the model drafts for, and technical tickets go from 20% to 46% of the volume. | Overall automation rate 60.9% to 55.2%. Every one of the seven categories rose, by 2.7 to 11.5 points. With the mix held fixed, over all eight categories: +6.5 points |
 | In week 10 review waits are five times longer. | Largest backlog in week 10 (340 against a usual 208), and the oldest |
 | Dutch drafts are edited 9.6 points more often than English ones. | 8.3 points more often (40.3% against 32.0%) |
 | Tickets arrive on Friday afternoons. | From Friday 15:00: median 64.8 calendar hours and 1.28 business hours. Others: 2.5 and 1.31 |
@@ -105,12 +106,17 @@ the change with the mix held fixed.
   including the weekend the clocks change.
 - **Planted effects.** Each row of the table above has a test with a tolerance.
   [docs/DESIGN.md](docs/DESIGN.md) gives each tolerance and where it comes from.
-- **Each check alone.** Every check gets a hand-made log with one damaged ticket and must return
-  that ticket and no other. A clean log must pass all eleven.
+- **Each check alone.** Every branch of every check gets a hand-made log with one damaged
+  ticket and must return that ticket and no other. A clean log must pass all thirteen.
 - **Breaking it on purpose.** Fourteen deliberate errors were put into the SQL and the
   generator one at a time (closing time 18:00, weekends counted, median for the 90th percentile,
   no removal of repeats, and others). The tests failed on all fourteen, after two tests were
   added for the two that first slipped through. The list is in `docs/DESIGN.md`.
+- **An independent review.** A reviewer who had not seen the code found no wrong number on the
+  generated data, and sixteen problems on inputs the generator never produces: a row without a
+  ticket id emptied every KPI, an event id reused on a different row was dropped as a repeat,
+  weeks without tickets vanished from the tables. `docs/DESIGN.md` lists what was fixed and what
+  was left.
 - **Documents.** A test fails if `docs/KPIS.md` and the weekly table disagree on a column, or
   if `docs/EVENTS.md` lists different events or checks than the code.
 

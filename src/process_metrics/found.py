@@ -62,7 +62,7 @@ def planted_and_found(con: duckdb.DuckDBPyConnection, build_dir: Path) -> list[F
     out.append(
         Finding(
             "Billing time to first draft",
-            f"a person takes {person_h:.1f} business hours (median), the model under 2 minutes",
+            f"a person takes {person_h:.1f} business hours (median), the model under 3 minutes",
             f"{ttfd['before']:.2f} h before, {60 * ttfd['after']:.1f} minutes after",
             abs(ttfd["before"] - person_h) <= 0.25 and ttfd["after"] < 0.05,
         )
@@ -73,6 +73,9 @@ def planted_and_found(con: duckdb.DuckDBPyConnection, build_dir: Path) -> list[F
     per_category = [r["change"] for name, r in mix.items() if r["sort"] == 2 and name != "privacy"]
     expected_gain = cfg["prompt_gain"] * (1 - cfg["flagged_rate"])
     fixed = mix["mix held fixed"]["change"]
+    sent = {n: r["sent_before"] + r["sent_after"] for n, r in mix.items() if r["sort"] == 2}
+    # categories the model never drafts for add weight and no change
+    expected_fixed = expected_gain * (1 - sent.get("privacy", 0) / sum(sent.values()))
     out.append(
         Finding(
             "Automation rate, weeks 5-7 to weeks 8-12",
@@ -82,7 +85,7 @@ def planted_and_found(con: duckdb.DuckDBPyConnection, build_dir: Path) -> list[F
             f"{_pt(max(per_category))}; with the mix held fixed {_pt(fixed)}",
             mix["overall"]["change"] < -0.02
             and min(per_category) > 0
-            and abs(fixed - expected_gain) <= 0.025,
+            and abs(fixed - expected_fixed) <= 0.025,
         )
     )
 

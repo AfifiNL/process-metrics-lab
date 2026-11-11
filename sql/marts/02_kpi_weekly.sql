@@ -32,7 +32,14 @@ backlog as (
         on f.received_at < w.end_utc and (f.sent_at is null or f.sent_at >= w.end_utc)
     group by w.week
 )
-select p.*, coalesce(b.backlog_end, 0) as backlog_end, b.backlog_age_p90_bus_h
-from per_week p
+select
+    w.week,
+    coalesce(p.volume, 0) as volume,
+    coalesce(p.sent, 0) as sent,
+    p.* exclude (week, volume, sent),
+    coalesce(b.backlog_end, 0) as backlog_end,
+    b.backlog_age_p90_bus_h
+from weeks w
+left join per_week p using (week)
 left join backlog b using (week)
-order by week;
+order by w.week;

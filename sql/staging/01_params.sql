@@ -1,3 +1,6 @@
+-- Every timestamp in this project is UTC. The casts in 02_calendar.sql rely on it.
+set TimeZone = 'UTC';
+
 -- The definitions the KPIs depend on. docs/KPIS.md describes them; a test compares them with
 -- the generator's own settings.
 create or replace table params as

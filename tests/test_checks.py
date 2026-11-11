@@ -85,8 +85,43 @@ def _again(i: int, **changes: str) -> Callable[[list[Row]], None]:
 
 CASES: list[tuple[str, Callable[[list[Row]], None], set[str]]] = [
     ("unknown event name", _again(4, event_id="X-9", event="closed"), {"unknown_event_name"}),
+    ("row without event_id", _set(4, event_id=""), {"missing_required_field"}),
+    ("row without occurred_at", _set(4, occurred_at=""), {"missing_required_field"}),
+    ("row without loaded_at", _set(2, loaded_at=""), {"missing_required_field"}),
+    ("received without source", _set(0, source=""), {"missing_required_field"}),
+    ("received without language", _set(0, language=""), {"missing_required_field"}),
+    ("triaged without category", _set(1, category=""), {"missing_required_field"}),
+    ("triaged without queue", _set(1, queue=""), {"missing_required_field"}),
     ("triaged without priority", _set(1, priority=""), {"missing_required_field"}),
+    ("draft without drafted_by", _set(2, drafted_by=""), {"missing_required_field"}),
+    ("draft without flagged", _set(2, flagged=""), {"missing_required_field"}),
     ("decision without actor", _set(3, actor=""), {"missing_required_field"}),
+    ("event without a name", _again(4, event_id="X-9", event=""), {"unknown_event_name"}),
+    ("unknown source", _set(0, source="fax"), {"unknown_value"}),
+    ("unknown language", _set(0, language="de"), {"unknown_value"}),
+    ("unknown priority", _set(1, priority="P1"), {"unknown_value"}),
+    ("unknown drafter", _set(2, drafted_by="bot"), {"unknown_value"}),
+    (
+        "triaged twice",
+        _again(
+            1, event_id="X-9", occurred_at="2026-08-04 08:00:30", loaded_at="2026-08-04 08:00:35"
+        ),
+        {"events_out_of_order"},
+    ),
+    ("draft without triage", _drop(1), {"events_out_of_order"}),
+    ("sent without an approval", _drop(3), {"events_out_of_order"}),
+    (
+        "a draft after sent",
+        _again(
+            2, event_id="X-9", occurred_at="2026-08-04 09:05:00", loaded_at="2026-08-04 09:05:05"
+        ),
+        {"events_out_of_order"},
+    ),
+    (
+        "stamped after the last week",
+        _set(4, occurred_at="2026-11-02 09:01:00", loaded_at="2026-11-02 09:01:05"),
+        {"event_outside_window"},
+    ),
     ("no received event", _drop(0), {"first_event_not_received"}),
     (
         "two received events",
@@ -165,7 +200,7 @@ def test_each_check_finds_its_defect(
 
 def test_every_excluding_check_has_a_case() -> None:
     covered = set().union(*(expected for _, _, expected in CASES))
-    assert covered | {"repeated_event_id"} == set(CHECKS)
+    assert covered | {"repeated_event_id", "event_id_reused"} == set(CHECKS)
 
 
 def test_a_repeated_delivery_is_dropped_and_the_ticket_kept(tmp_path: Path) -> None:
@@ -196,4 +231,63 @@ def test_an_approval_in_the_same_second_as_its_draft_is_in_order(tmp_path: Path)
     quick[3].update(occurred_at=quick[2]["occurred_at"], loaded_at=quick[2]["loaded_at"])
     found = flagged(tmp_path, quick)
     assert found["decision_without_draft"] == set()
+    assert found["_kept"] == {"A"}
+
+
+def test_sent_after_a_rejection_is_out_of_order(tmp_path: Path) -> None:
+    bad = ticket("X")
+    second = {"occurred_at": "2026-08-04 09:00:10", "loaded_at": "2026-08-04 09:00:15"}
+    bad.append({**bad[2], "event_id": "X-8", **second})
+    bad.append(
+        {
+            **bad[3],
+            "event_id": "X-9",
+            "event": "rejected",
+            "occurred_at": "2026-08-04 09:00:30",
+            "loaded_at": "2026-08-04 09:00:35",
+        }
+    )
+    found = flagged(tmp_path, ticket("A") + bad)
+    assert {c for c in CHECKS if "X" in found[c]} == {"events_out_of_order"}
+    assert found["_kept"] == {"A"}
+
+
+def test_a_clean_redraft_after_a_flagged_draft_may_be_approved(tmp_path: Path) -> None:
+    t = ticket("A")
+    t[2]["flagged"] = "true"
+    t[3]["event"] = "rejected"
+    redraft = {**t[2], "event_id": "A-8", "flagged": "false", "drafted_by": "person"}
+    redraft.update(occurred_at="2026-08-04 09:10:00", loaded_at="2026-08-04 09:10:05")
+    approval = {**t[3], "event_id": "A-9", "event": "approved"}
+    approval.update(occurred_at="2026-08-04 09:20:00", loaded_at="2026-08-04 09:20:05")
+    t[4].update(occurred_at="2026-08-04 09:21:00", loaded_at="2026-08-04 09:21:05")
+    found = flagged(tmp_path, [*t, redraft, approval])
+    assert all(found[c] == set() for c in CHECKS)
+    assert found["_kept"] == {"A"}
+
+
+def test_an_event_id_on_two_different_rows_excludes_both_tickets(tmp_path: Path) -> None:
+    a, b = ticket("A"), ticket("B")
+    b[4]["event_id"] = a[4]["event_id"]  # B's sent carries A's id: not a repeated delivery
+    found = flagged(tmp_path, a + b + ticket("C"))
+    assert found["event_id_reused"] == {"A", "B"}
+    assert found["repeated_event_id"] == set()
+    assert found["_kept"] == {"C"}
+
+
+def test_rows_without_ids_do_not_empty_the_kpis(tmp_path: Path) -> None:
+    orphan = {**ticket("X")[4], "ticket_id": ""}
+    nameless = [{**row, "event_id": ""} for row in ticket("Y")]
+    found = flagged(tmp_path, ticket("A") + ticket("B") + [orphan] + nameless)
+    assert found["_kept"] == {"A", "B"}  # the clean tickets are still counted
+    assert None in found["missing_required_field"]
+    assert "Y" in found["missing_required_field"]
+    assert found["repeated_event_id"] == set()  # rows without an id are not called repeats
+
+
+def test_a_repeat_loaded_in_the_same_second_is_still_one_event(tmp_path: Path) -> None:
+    log = ticket("A")
+    log.append(dict(log[3]))
+    found = flagged(tmp_path, log)
+    assert found["repeated_event_id"] == {"A"}
     assert found["_kept"] == {"A"}

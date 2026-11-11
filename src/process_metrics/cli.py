@@ -31,7 +31,8 @@ def _table(records: list[dict[str, Any]]) -> str:
     for r in records:
         lines.append(
             "  ".join(
-                fmt.format(r[col]).rjust(w) for (col, _, fmt), w in zip(WEEKLY, widths, strict=True)
+                ("-" if r[col] is None else fmt.format(r[col])).rjust(w)
+                for (col, _, fmt), w in zip(WEEKLY, widths, strict=True)
             )
         )
     return "\n".join(lines)
@@ -44,6 +45,9 @@ def _report(build: Path) -> int:
     print("\nData-quality checks\n")
     for r in rows(con, "select * from dq_summary where rows > 0"):
         print(f"  {r['check_name']:<28} {r['rows']:>5} rows  {r['effect']}")
+    if not (build / "truth.json").is_file():
+        print("\nNo truth.json beside the log, so there is nothing planted to compare with.")
+        return 0
     print("\nPlanted and found\n")
     findings = planted_and_found(con, build)
     for f in findings:

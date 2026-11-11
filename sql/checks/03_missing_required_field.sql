@@ -1,8 +1,10 @@
 -- effect: exclude
--- catches: an event without a field its type requires
-select ticket_id, event_id, event || ' without ' || missing as detail
+-- catches: a row without an id, a time, or a field its event type requires
+select ticket_id, event_id, coalesce(event, 'row') || ' without ' || missing as detail
 from (
     select ticket_id, event_id, event, case
+        when ticket_id is null then 'ticket_id'
+        when event_id is null then 'event_id'
         when occurred_at is null then 'occurred_at'
         when loaded_at is null then 'loaded_at'
         when event = 'received' and source is null then 'source'

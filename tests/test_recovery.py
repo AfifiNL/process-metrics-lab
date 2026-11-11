@@ -56,6 +56,8 @@ def test_defect_counts_are_exact(con: duckdb.DuckDBPyConnection, truth: dict[str
         "approved_never_sent": len(d["sent_lost"]),
         "event_outside_window": 0,
         "flagged_draft_approved_unedited": 0,
+        "event_id_reused": 0,
+        "unknown_value": 0,
     }
 
 

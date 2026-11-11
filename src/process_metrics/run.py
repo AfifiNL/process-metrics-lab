@@ -69,7 +69,11 @@ def load_checks(sql_dir: Path = SQL_DIR) -> list[Check]:
         if not match:
             raise RunError(f"{path.name}: check files are named NN_lower_case_name.sql")
         text = path.read_text(encoding="utf-8")
-        header = dict(re.findall(r"^-- (effect|catches): (.+)$", text, flags=re.MULTILINE))
+        # only the comment block at the top is the header; later comments are just comments
+        top = re.match(r"(?:--.*\n)*", text)
+        header = dict(
+            re.findall(r"^-- (effect|catches): (.+)$", top.group(0) if top else "", re.MULTILINE)
+        )
         if header.get("effect") not in EFFECTS or not header.get("catches"):
             raise RunError(
                 f"{path.name}: needs '-- effect: exclude|repair|report' and '-- catches:'"
@@ -85,12 +89,45 @@ def connect(db_path: Path | None = None) -> duckdb.DuckDBPyConnection:
     return con
 
 
+_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$"
+
+
 def load_events(con: duckdb.DuckDBPyConnection, events_csv: Path) -> None:
-    con.execute(
-        "create or replace table raw_events as "
-        "select * from read_csv(?, header = true, columns = ?)",
-        [str(events_csv), RAW_COLUMNS],
-    )
+    """Load the log as text, by column name, and refuse values that cannot be typed.
+
+    Timestamps must be UTC and carry no offset: a silently dropped "+02:00" would be the very
+    defect the local-time check looks for.
+    """
+    try:
+        con.execute(
+            "create or replace temp table raw_text as "
+            "select * from read_csv(?, header = true, all_varchar = true)",
+            [str(events_csv)],
+        )
+    except duckdb.Error as exc:
+        raise RunError(f"{events_csv.name} cannot be read as CSV: {exc}") from exc
+    found = [r[0] for r in con.execute("describe raw_text").fetchall()]
+    if sorted(found) != sorted(RAW_COLUMNS):
+        missing = sorted(set(RAW_COLUMNS) - set(found))
+        extra = sorted(set(found) - set(RAW_COLUMNS))
+        raise RunError(f"{events_csv.name}: wrong columns (missing {missing}, unexpected {extra})")
+    bad = con.execute(
+        "select count(*) from raw_text where "
+        "(occurred_at is not null and not regexp_matches(occurred_at, ?)) or "
+        "(loaded_at is not null and not regexp_matches(loaded_at, ?)) or "
+        "(flagged is not null and flagged not in ('true', 'false'))",
+        [_TIMESTAMP, _TIMESTAMP],
+    ).fetchone()
+    if bad and bad[0]:
+        raise RunError(
+            f"{events_csv.name}: {bad[0]} row(s) with a time that is not 'YYYY-MM-DD HH:MM:SS' in "
+            "UTC without an offset, or a flagged value that is not true or false"
+        )
+    columns = ", ".join(f"cast({name} as {kind}) as {name}" for name, kind in RAW_COLUMNS.items())
+    try:
+        con.execute(f"create or replace table raw_events as select {columns} from raw_text")  # noqa: S608
+    except duckdb.Error as exc:
+        raise RunError(f"{events_csv.name}: a value cannot be typed: {exc}") from exc
 
 
 def _run_folder(con: duckdb.DuckDBPyConnection, folder: Path) -> None:

@@ -210,7 +210,12 @@ def _week_of(cfg: Config, t: datetime) -> int:
 
 
 def _make_ticket(
-    cfg: Config, rng: random.Random, cf_rng: random.Random, n: int, week: int
+    cfg: Config,
+    rng: random.Random,
+    cf_rng: random.Random,
+    aux_rng: random.Random,
+    n: int,
+    week: int,
 ) -> Ticket:
     start = date.fromisoformat(cfg.window_start)
     received = _arrival(rng, start, week)
@@ -267,7 +272,8 @@ def _make_ticket(
         approved_at = _whole(
             add_business_seconds(redraft_at, review2_z * staffing(redraft_at) * 3600)
         )
-        approved_action = "approved" if u_second < 0.9 else "approved_with_edits"
+        # its own draw: u_second already decided between edits and rejection above
+        approved_action = "approved" if aux_rng.random() < 0.9 else "approved_with_edits"
     else:
         approved_at, approved_action = decision_at, decision
 
@@ -345,6 +351,7 @@ def generate(out_dir: Path, cfg: Config | None = None) -> dict[str, object]:
     rng = random.Random(cfg.seed)  # noqa: S311 - a seeded simulation, not a secret
     cf_rng = random.Random(cfg.seed + 1)  # noqa: S311
     load_rng = random.Random(cfg.seed + 2)  # noqa: S311
+    aux_rng = random.Random(cfg.seed + 4)  # noqa: S311
     defect_rng = random.Random(cfg.seed + 3)  # noqa: S311
     start = date.fromisoformat(cfg.window_start)
     window_end = week_bounds(start, cfg.n_weeks)[1]
@@ -352,7 +359,7 @@ def generate(out_dir: Path, cfg: Config | None = None) -> dict[str, object]:
     tickets: list[Ticket] = []
     for week in range(1, cfg.n_weeks + 1):
         for _ in range(cfg.tickets_per_week):
-            tickets.append(_make_ticket(cfg, rng, cf_rng, len(tickets) + 1, week))
+            tickets.append(_make_ticket(cfg, rng, cf_rng, aux_rng, len(tickets) + 1, week))
     tickets.sort(key=lambda t: (t.received_at, t.ticket_id))
 
     rows_by_ticket = {t.ticket_id: _events_for(t, window_end, load_rng) for t in tickets}

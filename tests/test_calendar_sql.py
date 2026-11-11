@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import duckdb
 
@@ -44,3 +45,29 @@ def test_business_seconds_macro_passes_null_through(con: duckdb.DuckDBPyConnecti
         " business_seconds(timestamp '2026-08-03 10:00', null::timestamp)"
     ).fetchone()
     assert got == (None, None)
+
+
+def test_business_seconds_macro_is_zero_when_the_end_is_not_after_the_start(
+    con: duckdb.DuckDBPyConnection,
+) -> None:
+    got = con.execute(
+        "select business_seconds(timestamp '2026-08-04 12:00', timestamp '2026-08-04 10:00'),"
+        " business_seconds(timestamp '2026-08-04 12:00', timestamp '2026-08-04 12:00')"
+    ).fetchone()
+    assert got == (0, 0)
+
+
+def test_the_sql_sets_its_own_time_zone(build: Path) -> None:
+    """Run from a session in another zone: the weeks must still be cut at Amsterdam midnight."""
+    import duckdb as ddb
+
+    from process_metrics.run import SQL_DIR, load_events
+
+    other = ddb.connect()
+    other.execute("SET TimeZone = 'America/New_York'")
+    load_events(other, build / "events.csv")
+    for path in sorted((SQL_DIR / "staging").glob("*.sql")):
+        other.execute(path.read_text(encoding="utf-8"))
+    first = other.execute("select start_utc from weeks where week = 1").fetchone()
+    assert first == (datetime(2026, 8, 2, 22, 0),)
+    other.close()

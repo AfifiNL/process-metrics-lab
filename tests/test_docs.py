@@ -35,7 +35,7 @@ def test_event_document_matches_the_generator_and_the_checks() -> None:
 
 def test_every_check_says_what_it_catches() -> None:
     checks = load_checks()
-    assert len(checks) == 11
+    assert len(checks) == 13
     assert [c.effect for c in checks].count("repair") == 1
     assert all(len(c.catches) > 20 for c in checks)
 

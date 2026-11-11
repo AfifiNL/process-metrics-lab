@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Any
 
 import duckdb
@@ -76,3 +77,33 @@ def test_analysis_tables_equal_the_reference(
     for arrival, expected in ref["friday"].items():
         for column, value in expected.items():
             assert _same(friday[arrival][column], value), (arrival, column)
+
+
+def test_a_sparse_log_still_matches_and_keeps_every_week(tmp_path: Path) -> None:
+    """Forty tickets a week: some categories have empty weeks, which must stay in the tables."""
+    from process_metrics import reference
+    from process_metrics.cli import main
+    from process_metrics.generate import Config, generate
+    from process_metrics.run import run
+    from process_metrics.site import build_site
+
+    generate(tmp_path, Config(seed=5, tickets_per_week=40))
+    sparse = run(tmp_path / "events.csv")
+    expected = reference.compute(tmp_path)
+    weekly = {r["week"]: r for r in rows(sparse, "select * from kpi_weekly")}
+    assert sorted(weekly) == list(range(1, 13))
+    for week, row in expected["weekly"].items():
+        for column, value in row.items():
+            assert _same(weekly[week][column], value), (week, column)
+    cells = {
+        (r["week"], r["category"]): r for r in rows(sparse, "select * from kpi_weekly_category")
+    }
+    assert set(cells) == set(expected["by_category"])
+    assert len(cells) == 12 * 8
+    assert any(r["volume"] == 0 for r in cells.values())  # the case the test exists for
+    for key, row in expected["by_category"].items():
+        for column, value in row.items():
+            assert _same(cells[key][column], value), (key, column)
+    sparse.close()
+    assert "<svg" in build_site(tmp_path, tmp_path / "site").read_text(encoding="utf-8")
+    assert main(["report", "--build", str(tmp_path)]) in (0, 1)  # prints; findings may be noisy

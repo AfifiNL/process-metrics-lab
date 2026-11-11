@@ -19,13 +19,15 @@ select
 from params p,
     lateral (
         select (p.window_start + i::integer)::date as d
-        from (select unnest(range(-7, 7 * p.n_weeks + 7)) as i)
+        from (select unnest(range(-31, 7 * p.n_weeks + 120)) as i)
     )
 where isodow(d) < 6;
 
--- Seconds of business time between two UTC timestamps. NULL in, NULL out.
+-- Seconds of business time between two UTC timestamps. NULL in, NULL out; 0 when b is not
+-- after a. The calendar covers 31 days before the first week to 120 days after it starts plus
+-- the weeks themselves; outside that range the result is too low.
 create or replace macro business_seconds(a, b) as (
-    case when a is null or b is null then null else (
+    case when a is null or b is null then null when b <= a then 0 else (
         select coalesce(sum(epoch(least(b, bd.close_utc)) - epoch(greatest(a, bd.open_utc))), 0)
         from business_days bd
         where bd.open_utc < b and bd.close_utc > a
