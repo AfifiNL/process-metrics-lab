@@ -9,8 +9,8 @@
 
 ## Decisions
 
-**Plain SQL files, no transformation framework.** Thirteen files run in order by sixty lines of
-Python. Nothing to learn before reading a query, and no generated SQL.
+**Plain SQL files, no transformation framework.** Twenty-one files run in order by one short
+Python module. Nothing to learn before reading a query, and no generated SQL.
 
 **DuckDB.** One file-less process, time zones built in, no server. The SQL avoids
 DuckDB-only shortcuts where a standard form exists, but it has not been run anywhere else.
@@ -29,7 +29,7 @@ is the test, the count on the dashboard and the list someone would send to the s
 **Exclude, do not repair.** A ticket that fails an excluding check is left out of every KPI and
 counted. The one repair is dropping repeated deliveries of the same event, which loses nothing.
 Repairing the local-time stamps would be possible (the offset is known), but each repair is a
-rule someone has to trust. The cost is visible: week 7 shows 1,230 tickets, not 1,499.
+rule someone has to trust. The cost is visible: week 7 shows 1,230 tickets, not 1,500.
 
 **Tickets belong to the week they were received.** The alternative, counting replies in the week
 they were sent, mixes cohorts. The cost is that the last week is incomplete, and the page says
@@ -53,12 +53,12 @@ table on the page.
 | Billing cycle-time estimate against the counterfactual | 0.5 business hours | The effect is about 2.8 hours. The estimate compares about 1,300 billing tickets before with about 900 after. Observed error: 0.09 h |
 | Other categories' change in weeks 5–7 | 0.25 h | Nothing was planted for them in those weeks. Observed: 0.05 h |
 | Billing time to first draft before the change | 0.25 h around the planted 2.5 h | A median of about 1,300 draws with a spread of 0.6 in logs. Observed: 2.59 h |
-| Automation rate with the mix held fixed | 2.5 points around 7.5 | About 3,900 and 6,900 replies in the two periods. Observed: 6.8 |
-| Every category rises | more than 0 | The smallest category has about 180 and 300 replies. Planted 7.5 points. Observed minimum: 2.7 |
+| Automation rate with the mix held fixed | 2.5 points around 7.5 | About 4,200 and 7,300 replies in the two periods. Observed: 6.8 |
+| Every category rises | more than 0 | The smallest category has about 250 and 290 replies. Planted 7.5 points. Observed minimum: 2.7 |
 | Overall rate falls | by more than 2 points | Expected about 5 from the planted mix. Observed: 5.7 |
 | Dutch against English edit rate | 3 points around 9.6 | About 3,900 Dutch and 11,600 English drafts. Observed: 8.3 |
 | Backlog in week 10 | the largest, the oldest, and at least 1.4 times the usual | Observed: 1.6 times |
-| Friday arrivals | at least 48 calendar hours more than business hours; business median within 0.5 h of the others | A weekend is 64 hours. Observed: 63.6 and 0.03 |
+| Friday arrivals | at least 48 calendar hours more than business hours; business median within 0.5 h of the others | A weekend is 64 hours. Observed: 63.6 and 0.04 |
 | Defects and excluded tickets | exact | They are counts |
 
 The seed (20261111) was fixed before the first run and never changed. The tolerances were
