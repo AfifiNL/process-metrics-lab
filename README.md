@@ -8,6 +8,9 @@ The data is invented. The generator plants known effects and known defects in it
 fails unless the SQL finds each one, counts each defect exactly, and agrees with a second
 calculation of every KPI written in Python.
 
+**The dashboard:** https://afifinl.github.io/process-metrics-lab/ (rebuilt from the fixed seed on
+every push to `main`; the build stops before publishing if a planted effect is missed).
+
 ```text
 $ make demo
 generated 18000 tickets, 91768 event rows
@@ -63,6 +66,7 @@ make check     # lint, types and all tests: what CI runs
 | Generator | `src/process_metrics/generate.py` | Seed in, event log and truth file out |
 | Reference | `src/process_metrics/reference.py` | Every KPI again in Python, from the generator's own records |
 | Dashboard | `src/process_metrics/site.py` | One static page, inline SVG, no JavaScript |
+| Publishing | `.github/workflows/pages.yml` | Builds the page in CI and puts it on GitHub Pages |
 
 The SQL is plain files run in order on DuckDB by `src/process_metrics/run.py`. Four event names
 (`triaged`, `approved`, `approved_with_edits`, `rejected`) and the categories, queues and

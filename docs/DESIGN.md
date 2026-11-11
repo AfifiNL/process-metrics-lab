@@ -45,6 +45,11 @@ on, the generator also computes when it would have been sent with a person draft
 same review draw. The planted effect is the difference of the two medians over weeks 5–7. That
 is a property of the simulation, not a formula.
 
+**The page is built in CI, not committed.** `pages.yml` runs `make demo` and `make site` on every
+push to `main` and publishes the result. `make demo` fails when a planted effect is missed, so a
+page with a wrong number is not published. The page is the same every time, because the seed is
+fixed.
+
 **The page has no JavaScript.** Hover is CSS and SVG titles. Every chart's values are also in a
 table on the page.
 
