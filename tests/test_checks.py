@@ -189,3 +189,11 @@ def test_a_late_stamp_that_is_not_the_offset_is_not_called_local_time(tmp_path: 
     found = flagged(tmp_path, ticket("A") + bad)
     assert "X" in found["event_after_load"]
     assert found["local_time_logged_as_utc"] == set()
+
+
+def test_an_approval_in_the_same_second_as_its_draft_is_in_order(tmp_path: Path) -> None:
+    quick = ticket("A")
+    quick[3].update(occurred_at=quick[2]["occurred_at"], loaded_at=quick[2]["loaded_at"])
+    found = flagged(tmp_path, quick)
+    assert found["decision_without_draft"] == set()
+    assert found["_kept"] == {"A"}

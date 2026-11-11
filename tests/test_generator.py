@@ -63,3 +63,22 @@ def test_defects_do_not_overlap(truth: dict[str, Any]) -> None:
     assert sum(len(g) for g in groups) == len(set().union(*groups))
     assert (len(groups[0]), len(groups[1])) == (30, 40)
     assert len(groups[2]) > 200
+
+
+def test_the_planted_values_are_the_ones_the_spec_names() -> None:
+    cfg = Config()
+    assert (cfg.billing_model_from_week, cfg.change_week, cfg.staffing_dip_week) == (5, 8, 10)
+    assert (cfg.prompt_gain, cfg.dutch_unedited_penalty, cfg.staffing_dip_factor) == (
+        0.08,
+        0.12,
+        5.0,
+    )
+    assert (cfg.n_repeated_deliveries, cfg.n_approval_before_draft, cfg.n_sent_lost) == (
+        220,
+        30,
+        40,
+    )
+    assert (cfg.local_time_week, cfg.local_time_source) == (7, "chat")
+    assert abs(sum(cfg.mix_before.values()) - 1) < 1e-9
+    assert abs(sum(cfg.mix_after.values()) - 1) < 1e-9
+    assert cfg.mix_after["technical"] > 2 * cfg.mix_before["technical"]

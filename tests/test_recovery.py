@@ -77,3 +77,21 @@ def test_repeated_deliveries_are_removed_once(con: duckdb.DuckDBPyConnection) ->
     kept = rows(con, "select count(*) as n, count(distinct event_id) as ids from events")[0]
     assert raw["n"] - raw["ids"] == 220
     assert kept["n"] == kept["ids"] == raw["ids"]
+
+
+def test_another_seed_passes_too(tmp_path: Path) -> None:
+    """The fixed seed is not a lucky one: other data, same findings, same match with Python."""
+    from process_metrics import reference
+    from process_metrics.generate import Config, generate
+    from process_metrics.run import run
+
+    generate(tmp_path, Config(seed=3))
+    other = run(tmp_path / "events.csv")
+    assert [f.effect for f in planted_and_found(other, tmp_path) if not f.ok] == []
+    expected = reference.compute(tmp_path)["weekly"]
+    table = {r["week"]: r for r in rows(other, "select * from kpi_weekly")}
+    for week, row in expected.items():
+        for column, value in row.items():
+            got = table[week][column]
+            assert (got is None and value is None) or abs(float(got) - float(value)) < 1e-9
+    other.close()
