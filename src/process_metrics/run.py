@@ -137,7 +137,7 @@ def run(
 ) -> duckdb.DuckDBPyConnection:
     """Load the event log and run every SQL file. Returns the open connection."""
     if not events_csv.is_file():
-        raise RunError(f"no event log at {events_csv}; run `process-metrics generate` first")
+        raise RunError(f"no event log at {events_csv}; run `make demo` first to generate it")
     con = connect(db_path)
     load_events(con, events_csv)
     _run_folder(con, sql_dir / "staging")

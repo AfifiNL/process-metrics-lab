@@ -54,7 +54,7 @@ def _report(build: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="process-metrics", description=__doc__)
+    parser = argparse.ArgumentParser(prog="process-metrics-lab", description=__doc__)
     parser.add_argument("command", choices=("generate", "report", "demo", "site"))
     parser.add_argument("--build", type=Path, default=Path("build"), help="working folder")
     parser.add_argument("--out", type=Path, default=Path("site"), help="folder for the page")
