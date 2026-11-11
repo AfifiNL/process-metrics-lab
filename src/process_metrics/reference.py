@@ -18,7 +18,15 @@ from typing import Any
 
 from process_metrics.calendar import business_seconds, to_local, week_bounds
 
-MODEL_CATEGORIES = ("billing", "technical", "account", "shipping", "cancellation", "feedback", "other")
+MODEL_CATEGORIES = (
+    "billing",
+    "technical",
+    "account",
+    "shipping",
+    "cancellation",
+    "feedback",
+    "other",
+)
 
 
 @dataclass(frozen=True)
@@ -212,7 +220,8 @@ def compute(out_dir: Path) -> dict[str, Any]:
         mix[category] = {"before": automation(a), "after": automation(b)}
         weights[category] = sum(1 for t in a + b if t.sent_at is not None)
     standardised = sum(
-        weights[c] * ((mix[c]["after"] or 0.0) - (mix[c]["before"] or 0.0)) for c in MODEL_CATEGORIES
+        weights[c] * ((mix[c]["after"] or 0.0) - (mix[c]["before"] or 0.0))
+        for c in MODEL_CATEGORIES
     ) / sum(weights.values())
 
     def edit_rate(language: str) -> float | None:

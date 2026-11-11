@@ -71,7 +71,9 @@ def load_checks(sql_dir: Path = SQL_DIR) -> list[Check]:
         text = path.read_text(encoding="utf-8")
         header = dict(re.findall(r"^-- (effect|catches): (.+)$", text, flags=re.MULTILINE))
         if header.get("effect") not in EFFECTS or not header.get("catches"):
-            raise RunError(f"{path.name}: needs '-- effect: exclude|repair|report' and '-- catches:'")
+            raise RunError(
+                f"{path.name}: needs '-- effect: exclude|repair|report' and '-- catches:'"
+            )
         body = text.strip().rstrip(";")
         checks.append(Check(match.group(1), header["effect"], header["catches"], body, path))
     return checks
@@ -110,11 +112,12 @@ def run_checks(con: duckdb.DuckDBPyConnection, sql_dir: Path = SQL_DIR) -> list[
     for check in checks:
         table = f"check_{check.name}"  # the name matched [a-z_]+ above
         try:
-            con.execute(f"create or replace table {table} as {check.sql}")  # noqa: S608
+            con.execute(f"create or replace table {table} as {check.sql}")
         except duckdb.Error as exc:
             raise RunError(f"checks/{check.path.name}: {exc}") from exc
         con.execute(
-            f"insert into dq_summary select ?, ?, ?, count(*), count(distinct ticket_id) from {table}",  # noqa: S608
+            "insert into dq_summary "  # noqa: S608
+            f"select ?, ?, ?, count(*), count(distinct ticket_id) from {table}",
             [check.name, check.effect, check.catches],
         )
         if check.effect == "exclude":

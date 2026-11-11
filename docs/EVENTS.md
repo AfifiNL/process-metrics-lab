@@ -65,7 +65,7 @@ Each rule is enforced by a file in `sql/checks/`. A check returns the rows that 
 | `local_time_logged_as_utc` | Report only: it names the cause of most `event_after_load` rows |
 | `approved_never_sent` | The ticket is excluded: approved more than 24 hours before the end of the data, and no `sent` |
 | `event_outside_window` | The ticket is excluded (rule 7) |
+| `flagged_draft_approved_unedited` | The ticket is excluded (rule 4) |
 
 An excluded ticket is left out of every KPI, and the dashboard shows how many were excluded and
-why. Nothing is corrected except repeated deliveries. Rule 4 has no check: the log does not
-carry enough to tell an edited approval from an unedited one except by its name.
+why. Nothing is corrected except repeated deliveries.

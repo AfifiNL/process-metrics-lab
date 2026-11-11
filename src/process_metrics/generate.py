@@ -186,7 +186,7 @@ def _whole(t: datetime) -> datetime:
 
 
 def _arrival(rng: random.Random, start: date, week: int) -> datetime:
-    """A received time in the given week: mostly weekday office hours, some evenings, some weekend."""
+    """A received time in the week: mostly weekday office hours, some evenings and weekends."""
     r, dow = rng.random(), 6
     for i, w in enumerate(DAY_WEIGHTS):
         r -= w
@@ -209,7 +209,9 @@ def _week_of(cfg: Config, t: datetime) -> int:
     return (to_local(t).date() - start).days // 7 + 1
 
 
-def _make_ticket(cfg: Config, rng: random.Random, cf_rng: random.Random, n: int, week: int) -> Ticket:
+def _make_ticket(
+    cfg: Config, rng: random.Random, cf_rng: random.Random, n: int, week: int
+) -> Ticket:
     start = date.fromisoformat(cfg.window_start)
     received = _arrival(rng, start, week)
     mix = cfg.mix_after if week >= cfg.change_week else cfg.mix_before
@@ -247,7 +249,9 @@ def _make_ticket(cfg: Config, rng: random.Random, cf_rng: random.Random, n: int,
         p += cfg.prompt_gain if week >= cfg.change_week else 0.0
         p -= cfg.dutch_unedited_penalty if language == "nl" else 0.0
         if flagged:
-            decision = "rejected" if u_decision < cfg.flagged_rejected_share else "approved_with_edits"
+            decision = (
+                "rejected" if u_decision < cfg.flagged_rejected_share else "approved_with_edits"
+            )
         elif u_decision < p:
             decision = "approved"
         elif u_second < cfg.edited_share_of_changed:
